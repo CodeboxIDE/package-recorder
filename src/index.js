@@ -27,8 +27,19 @@ commands.register({
 
             return d.promise;
         })
-        .then(function() {
-            return dialogs.open(Dialog);
+        .then(function(localMediaStream) {
+            return dialogs.open(Dialog, {
+                view: {
+                    localMediaStream: localMediaStream
+                }
+            });
         });
     }
 });
+
+if (codebox.menubar) {
+    codebox.menubar.createMenu("tools", {
+        caption: "Record Audio File",
+        command: "recorder.open"
+    });
+}
