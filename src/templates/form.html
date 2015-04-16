@@ -1,10 +1,19 @@
+<% if (recordUrl) { %>
 <div class="form-content">
-
-
+	<audio controls>
+	    <source src="<%- recordUrl %>" type="audio/wav">
+	    Your browser does not support the audio element.
+	</audio>
 </div>
+<% } %>
 
 <div class="form-submit">
+	<% if (this.recording) { %>
+    <button class="button button-success do-stop">Stop</button>
+    <% } else if (recordUrl) { %>
     <button class="button button-success do-save">Save</button>
+    <% } else { %>
     <button class="button button-success do-record">Record</button>
+    <% } %>
     <button class="button button-success do-close pull-right">Close</button>
 </div>

@@ -1,10 +1,12 @@
 var templateForm = require("./templates/form.html");
+var Recorder = require("./recorder");
 
 var _ = codebox.require("hr.utils");
 var commands = codebox.require("core/commands");
 var FormView = codebox.require("views/form");
 var View = codebox.require("hr.view");
-var Recorder = require("./recorder");
+var File = codebox.require("models/file");
+var dialogs = codebox.require("utils/dialogs");
 
 var Dialog = View.Template.extend({
     tagName: "div",
@@ -13,7 +15,7 @@ var Dialog = View.Template.extend({
     events: {
         "click .do-save": "doSave",
         "click .do-record": "doRecord",
-        "click .do-discard": "doDiscard",
+        "click .do-stop": "doStop",
         "click .do-close": "doClose"
     },
 
@@ -24,6 +26,8 @@ var Dialog = View.Template.extend({
 
         this.recording = false;
         this.startTime;
+        this.recordUrl;
+        this.recordBlob;
 
         this.recorder;
 
@@ -40,38 +44,61 @@ var Dialog = View.Template.extend({
         this.audioRecorder = new Recorder(this.audioInput);
     },
 
+    templateContext: function() {
+        return {
+            recordUrl: this.recordUrl,
+            recording: this.recording
+        };
+    },
+
     // Submit form
     doSave: function(e) {
-        if (e) e.preventDefault();
+        var that = this;
 
-        this.stopRecording();
-        this.parent.close(e);
+        if (e) {
+            e.stopPropagation();
+            e.preventDefault();
+        }
+
+        if (!this.recordBlob) return;
+
+        return File.saveAs("untitled.wav", this.recordBlob)
+        .then(function() {
+            that.parent.close(e);
+        })
+        .fail(dialogs.error);
     },
 
     // Start recording
     doRecord: function(e) {
-        if (e) e.preventDefault();
+        if (e) {
+            e.stopPropagation();
+            e.preventDefault();
+        }
 
         this.recording = true;
         this.startTime = Date.now();
         this.audioRecorder.record();
+        this.update();
     },
 
     // Stop recording
     stopRecording: function() {
         var that = this;
+        if (!this.recording) return;
 
         // we stop recording
         this.recording = false;
         this.audioRecorder.stop();
         this.audioRecorder.exportWAV(function (blob) {
+            that.recordBlob = blob;
             that.recordUrl = (window.URL || window.webkitURL).createObjectURL(blob);
-            console.log("Audio blob", that.recordUrl);
+            that.update();
         });
     },
 
-    // Discard
-    doDiscard: function(e) {
+    // Stop recording
+    doStop: function(e) {
         if (e) e.preventDefault();
 
         this.stopRecording();
