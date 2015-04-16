@@ -1,12 +1,14 @@
 var templateForm = require("./templates/form.html");
 var Recorder = require("./recorder");
 
+var Q = codebox.require("q");
 var _ = codebox.require("hr.utils");
 var commands = codebox.require("core/commands");
 var FormView = codebox.require("views/form");
 var View = codebox.require("hr.view");
 var File = codebox.require("models/file");
 var dialogs = codebox.require("utils/dialogs");
+
 
 var Dialog = View.Template.extend({
     tagName: "div",
@@ -16,7 +18,8 @@ var Dialog = View.Template.extend({
         "click .do-save": "doSave",
         "click .do-record": "doRecord",
         "click .do-stop": "doStop",
-        "click .do-close": "doClose"
+        "click .do-close": "doClose",
+        "click .do-discard": "doDiscard"
     },
 
     initialize: function() {
@@ -26,7 +29,6 @@ var Dialog = View.Template.extend({
 
         this.recording = false;
         this.startTime;
-        this.recordUrl;
         this.recordBlob;
 
         this.recorder;
@@ -42,12 +44,24 @@ var Dialog = View.Template.extend({
         this.audioGain.connect(this.audioContext.destination);
 
         this.audioRecorder = new Recorder(this.audioInput);
+
+        this.intUpdate = setInterval(function() {
+            if (that.recording) that.update();
+        }, 1000);
+        this.listenTo(this.parent, "close", function() {
+            if (that.intUpdate) clearInterval(that.intUpdate);
+        });
     },
 
     templateContext: function() {
         return {
-            recordUrl: this.recordUrl,
-            recording: this.recording
+            duration: (this.startTime? Date.now() - this.startTime : 0),
+            recordUrl: this.recordBlob? (window.URL || window.webkitURL).createObjectURL(this.recordBlob) : null,
+            recording: this.recording,
+
+            timer: function(n) {
+                return (n<10) ? "0"+n.toFixed(0) : n.toFixed(0);
+            }
         };
     },
 
@@ -62,7 +76,12 @@ var Dialog = View.Template.extend({
 
         if (!this.recordBlob) return;
 
-        return File.saveAs("untitled.wav", this.recordBlob)
+        return codebox.statusbar.loading(
+            File.saveAs("untitled.wav", that.recordBlob),
+            {
+                prefix: "Saving WAV file"
+            }
+        )
         .then(function() {
             that.parent.close(e);
         })
@@ -82,6 +101,20 @@ var Dialog = View.Template.extend({
         this.update();
     },
 
+    // Discard current file
+    doDiscard: function(e) {
+        if (e) {
+            e.stopPropagation();
+            e.preventDefault();
+        }
+
+        if (this.recording) return;
+
+        this.recording = false;
+        this.recordBlob = null;
+        this.update();
+    },
+
     // Stop recording
     stopRecording: function() {
         var that = this;
@@ -90,9 +123,17 @@ var Dialog = View.Template.extend({
         // we stop recording
         this.recording = false;
         this.audioRecorder.stop();
-        this.audioRecorder.exportWAV(function (blob) {
+        var d = Q.defer();
+        that.audioRecorder.exportWAV(d.resolve)
+
+        return codebox.statusbar.loading(
+            d.promise,
+            {
+                prefix: "Creating WAV file"
+            }
+        )
+        .then(function(blob) {
             that.recordBlob = blob;
-            that.recordUrl = (window.URL || window.webkitURL).createObjectURL(blob);
             that.update();
         });
     },
