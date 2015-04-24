@@ -77,7 +77,7 @@ var Dialog = View.Template.extend({
         if (!this.recordBlob) return;
 
         return codebox.statusbar.loading(
-            File.saveAs("untitled.wav", that.recordBlob),
+            File.saveAs("assets/untitled.wav", that.recordBlob),
             {
                 prefix: "Saving WAV file"
             }
